@@ -1,0 +1,126 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and overall progress",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "streak": { "type": "integer" },
+        "lastActive": { "type": "string", "format": "date-time" },
+        "traitsProgress": { "type": "object" },
+        "mbtiType": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Trait": {
+      "title": "Personality Trait",
+      "description": "Information about a specific personality trait",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "iconName": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "A set of questions for a trait",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "traitId": { "type": "string" },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": { "type": "string" },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "text": { "type": "string" },
+                    "score": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Result": {
+      "title": "Quiz Result",
+      "description": "A user's quiz attempt result",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "traitId": { "type": "string" },
+        "score": { "type": "integer" },
+        "percentage": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+    "PersonalityType": {
+      "title": "Personality Type",
+      "description": "MBTI-style personality type definition",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "careers": { "type": "array", "items": { "type": "string" } },
+        "strengths": { "type": "array", "items": { "type": "string" } },
+        "weaknesses": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "DailyMood": {
+      "title": "Daily Mood",
+      "description": "User daily emotional check-in",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "moodType": { "type": "string" },
+        "moodPercentage": { "type": "number" },
+        "moodEmoji": { "type": "string" },
+        "answers": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "moodType", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Root collection for user profiles"
+    },
+    "traits": {
+      "schema": { "$ref": "#/entities/Trait" },
+      "description": "Available personality traits"
+    },
+    "quizzes": {
+      "schema": { "$ref": "#/entities/Quiz" },
+      "description": "Quizzes for traits"
+    },
+    "results": {
+      "schema": { "$ref": "#/entities/Result" },
+      "description": "User quiz results"
+    },
+    "personality_types": {
+      "schema": { "$ref": "#/entities/PersonalityType" },
+      "description": "MBTI personality types data"
+    },
+    "daily_moods": {
+      "schema": { "$ref": "#/entities/DailyMood" },
+      "description": "User daily emotional check-ins"
+    }
+  }
+}

@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Validation Blueprints
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() <= 128
+        && data.email is string && data.email.size() <= 256
+        && (data.displayName == null || (data.displayName is string && data.displayName.size() <= 128))
+        && (data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 1024))
+        && data.streak is number
+        && data.traitsProgress is map
+        && (data.mbtiType == null || (data.mbtiType is string && data.mbtiType.size() <= 4));
+    }
+
+    function isValidResult(data) {
+      return data.userId == request.auth.uid
+        && data.traitId is string && data.traitId.size() <= 64
+        && data.score is number
+        && data.percentage is number
+        && data.timestamp == request.time;
+    }
+
+    function isValidMood(data) {
+      return data.userId == request.auth.uid
+        && data.moodType is string && data.moodType.size() <= 64
+        && data.moodPercentage is number
+        && data.moodEmoji is string && data.moodEmoji.size() <= 16
+        && data.answers is map
+        && data.timestamp == request.time;
+    }
+
+    // User Profile Rules
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) 
+        && isValidId(userId)
+        && incoming().uid == userId
+        && incoming().keys().hasAll(['uid', 'email', 'streak', 'lastActive', 'traitsProgress'])
+        && isValidUser(incoming())
+        && incoming().lastActive == request.time;
+      allow update: if isOwner(userId)
+        && incoming().uid == userId
+        && isValidUser(incoming())
+        && incoming().lastActive == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'streak', 'lastActive', 'traitsProgress', 'mbtiType']);
+    }
+
+    // Metadata (Read-Only for signed-in users)
+    match /traits/{traitId} {
+      allow read: if isSignedIn();
+    }
+
+    match /quizzes/{quizId} {
+      allow read: if isSignedIn();
+    }
+
+    match /personality_types/{typeId} {
+      allow read: if isSignedIn();
+    }
+
+    // Results (User-Specific)
+    match /results/{resultId} {
+      // Security through query enforcement: Client must filter by userId
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() 
+        && isValidResult(incoming())
+        && incoming().userId == request.auth.uid;
+    }
+
+    // Daily Moods (User-Specific)
+    match /daily_moods/{moodId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() 
+        && isValidMood(incoming())
+        && incoming().userId == request.auth.uid;
+    }
+  }
+}
