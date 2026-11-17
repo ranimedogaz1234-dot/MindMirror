@@ -27,6 +27,21 @@ service cloud.firestore {
        return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    // Preference percentages: exactly the eight pole keys, each 0-100.
+    function isPercent(value) {
+      return value is number && value >= 0 && value <= 100;
+    }
+
+    function isValidMbtiScores(scores) {
+      return scores is map
+        && scores.keys().hasOnly(['E', 'I', 'S', 'N', 'T', 'F', 'J', 'P'])
+        && scores.keys().hasAll(['E', 'I', 'S', 'N', 'T', 'F', 'J', 'P'])
+        && isPercent(scores.E) && isPercent(scores.I)
+        && isPercent(scores.S) && isPercent(scores.N)
+        && isPercent(scores.T) && isPercent(scores.F)
+        && isPercent(scores.J) && isPercent(scores.P);
+    }
+
     // Validation Blueprints
     function isValidUser(data) {
       return data.uid is string && data.uid.size() <= 128
@@ -35,7 +50,9 @@ service cloud.firestore {
         && (data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 1024))
         && data.streak is number
         && data.traitsProgress is map
-        && (data.mbtiType == null || (data.mbtiType is string && data.mbtiType.size() <= 4));
+        && (!('mbtiType' in data) || data.mbtiType == null || (data.mbtiType is string && data.mbtiType.size() <= 4))
+        && (!('language' in data) || data.language == null || (data.language is string && data.language in ['en', 'fr', 'ar']))
+        && (!('mbtiScores' in data) || data.mbtiScores == null || isValidMbtiScores(data.mbtiScores));
     }
 
     function isValidResult(data) {
@@ -68,7 +85,7 @@ service cloud.firestore {
         && incoming().uid == userId
         && isValidUser(incoming())
         && incoming().lastActive == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'streak', 'lastActive', 'traitsProgress', 'mbtiType']);
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'streak', 'lastActive', 'traitsProgress', 'mbtiType', 'mbtiScores', 'language']);
     }
 
     // Metadata (Read-Only for signed-in users)

@@ -1,181 +1,274 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, ArrowRight, Sparkles, BookOpen, Briefcase, Zap, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Check, Sparkles, X } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../providers/AuthProvider';
 import toast from 'react-hot-toast';
+import ModalShell from '../components/ModalShell';
+import { LANGUAGES, useLanguage, type Language } from '../i18n';
+import {
+  MBTI_ITEMS,
+  RESPONSE_LABELS,
+  UI,
+  scoreAnswers,
+  type MbtiResult,
+  type ResponseIndex,
+} from '../mbti';
+import MBTIResult from './MBTIResultScreen';
 
-const MBTI_QUESTIONS = [
-  // E vs I
-  { text: "Do you enjoy being the center of attention?", options: [{text: "Yes", score: "E"}, {text: "No", score: "I"}] },
-  { text: "Do you prefer small gatherings over big parties?", options: [{text: "Party", score: "E"}, {text: "Small", score: "I"}] },
-  { text: "Do you start conversations with strangers?", options: [{text: "Yes", score: "E"}, {text: "No", score: "I"}] },
-  { text: "Do you feel energized after social events?", options: [{text: "Energized", score: "E"}, {text: "Drained", score: "I"}] },
-  { text: "Do you think out loud?", options: [{text: "Yes", score: "E"}, {text: "No", score: "I"}] },
+/** Compact language switcher used on the gate, during the test and on results. */
+export const LanguagePicker: React.FC<{
+  value: Language;
+  onChange: (lang: Language) => void;
+  size?: 'sm' | 'lg';
+}> = ({ value, onChange, size = 'sm' }) => (
+  <div
+    role="group"
+    aria-label="Language"
+    className={size === 'lg' ? 'grid gap-3 w-full' : 'flex items-center gap-1.5'}
+  >
+    {LANGUAGES.map((lang) => {
+      const active = lang.code === value;
+      return (
+        <button
+          key={lang.code}
+          type="button"
+          onClick={() => onChange(lang.code)}
+          aria-pressed={active}
+          lang={lang.code}
+          dir={lang.dir}
+          className={
+            size === 'lg'
+              ? `w-full flex items-center gap-4 px-5 py-4 rounded-2xl border-2 text-start transition-all ${
+                  active
+                    ? 'border-violet-500 bg-violet-50 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/40'
+                }`
+              : `px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  active ? 'bg-violet-100 text-violet-700' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                }`
+          }
+        >
+          <span className={size === 'lg' ? 'text-2xl' : 'text-sm'} aria-hidden>
+            {lang.flag}
+          </span>
+          <span className={size === 'lg' ? 'flex-1 text-lg font-bold text-slate-800' : ''}>{lang.label}</span>
+          {size === 'lg' && active && <Check size={20} className="text-violet-600 shrink-0" />}
+        </button>
+      );
+    })}
+  </div>
+);
 
-  // S vs N
-  { text: "Do you focus on the present moment?", options: [{text: "Present", score: "S"}, {text: "Future", score: "N"}] },
-  { text: "Do you prefer practical information?", options: [{text: "Practical", score: "S"}, {text: "Theoretical", score: "N"}] },
-  { text: "Are you a detail-oriented person?", options: [{text: "Details", score: "S"}, {text: "Big picture", score: "N"}] },
-  { text: "Do you trust experience over inspiration?", options: [{text: "Experience", score: "S"}, {text: "Inspiration", score: "N"}] },
-  { text: "Do you follow instructions literally?", options: [{text: "Literally", score: "S"}, {text: "Interpret", score: "N"}] },
-
-  // T vs F
-  { text: "Do you prioritize logic over feelings?", options: [{text: "Logic", score: "T"}, {text: "Feelings", score: "F"}] },
-  { text: "Are you objective when making decisions?", options: [{text: "Objective", score: "T"}, {text: "Subjective", score: "F"}] },
-  { text: "Do you value truth over tact?", options: [{text: "Truth", score: "T"}, {text: "Kindness", score: "F"}] },
-  { text: "Do you enjoy a good debate?", options: [{text: "Yes", score: "T"}, {text: "No", score: "F"}] },
-  { text: "Are you naturally critical?", options: [{text: "Analytical", score: "T"}, {text: "Appreciative", score: "F"}] },
-
-  // J vs P
-  { text: "Do you like having a settled schedule?", options: [{text: "Scheduled", score: "J"}, {text: "Spontaneous", score: "P"}] },
-  { text: "Do you prefer cleaning up as you go?", options: [{text: "Clean", score: "J"}, {text: "Messy", score: "P"}] },
-  { text: "Do you like to finish tasks early?", options: [{text: "Early", score: "J"}, {text: "Last minute", score: "P"}] },
-  { text: "Do you make to-do lists frequently?", options: [{text: "Lists", score: "J"}, {text: "Mental notes", score: "P"}] },
-  { text: "Do you like to have everything planned?", options: [{text: "Planned", score: "J"}, {text: "Open", score: "P"}] },
-];
+type Stage = 'language' | 'test' | 'result';
 
 const MBTITestScreen: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const { language, setLanguage, dir, rtl } = useLanguage();
+
+  // Someone who has already chosen a language before skips straight past the gate.
+  const [stage, setStage] = useState<Stage>('language');
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [answers, setAnswers] = useState<string[]>([]);
-  const [result, setResult] = useState<string | null>(null);
+  /** Answers keyed by item id, so switching language never disturbs them. */
+  const [answers, setAnswers] = useState<Record<string, ResponseIndex>>({});
+  const [result, setResult] = useState<MbtiResult | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
-  const calculateType = (ans: string[]) => {
-    const counts: Record<string, number> = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
-    ans.forEach(a => counts[a]++);
-    
-    const type = [
-      counts.E >= counts.I ? 'E' : 'I',
-      counts.S >= counts.N ? 'S' : 'N',
-      counts.T >= counts.F ? 'T' : 'F',
-      counts.J >= counts.P ? 'J' : 'P',
-    ].join('');
-    
-    return type;
-  };
+  const t = UI[language];
+  const labels = RESPONSE_LABELS[language];
+  const total = MBTI_ITEMS.length;
+  const item = MBTI_ITEMS[currentIdx];
+  const progress = ((currentIdx + (answers[item?.id ?? ''] !== undefined ? 1 : 0)) / total) * 100;
 
-  const handleAnswer = (val: string) => {
-    const newAnswers = [...answers, val];
-    setAnswers(newAnswers);
-    if (currentIdx < MBTI_QUESTIONS.length - 1) {
-      setCurrentIdx(currentIdx + 1);
-    } else {
-      const type = calculateType(newAnswers);
-      setResult(type);
-      saveResult(type);
-    }
-  };
+  const answeredCount = useMemo(() => Object.keys(answers).length, [answers]);
 
-  const saveResult = async (type: string) => {
+  const persist = async (scored: MbtiResult) => {
     if (!user) return;
+    setSaving(true);
     try {
-      await updateDoc(doc(db, 'users', user.uid), { 
-        mbtiType: type,
-        lastActive: serverTimestamp()
+      await updateDoc(doc(db, 'users', user.uid), {
+        mbtiType: scored.type,
+        mbtiScores: scored.percentages,
+        language,
+        lastActive: serverTimestamp(),
       });
-      toast.success(`Personality Type: ${type}`);
+      setSaved(true);
+      toast.success(`${t.saved}: ${scored.type}`);
     } catch (err) {
-      console.error(err);
+      console.error('Save MBTI result error:', err);
+      toast.error(t.saveResult);
+    } finally {
+      setSaving(false);
     }
   };
 
-  if (result) {
+  const handleAnswer = (response: ResponseIndex) => {
+    const next = { ...answers, [item.id]: response };
+    setAnswers(next);
+
+    if (currentIdx < total - 1) {
+      setCurrentIdx(currentIdx + 1);
+      return;
+    }
+
+    const scored = scoreAnswers(MBTI_ITEMS, next);
+    setResult(scored);
+    setStage('result');
+    void persist(scored);
+  };
+
+  const restart = () => {
+    setAnswers({});
+    setCurrentIdx(0);
+    setResult(null);
+    setSaved(false);
+    setStage('test');
+  };
+
+  // ── Language gate ──
+  if (stage === 'language') {
     return (
-      <div className="fixed inset-0 bg-white z-[70] p-8 flex flex-col space-y-8 overflow-y-auto">
-        <header className="flex justify-between items-center">
-           <h2 className="text-xl font-bold">Your Result</h2>
-           <button onClick={onClose} className="p-2 bg-gray-50 rounded-full"><X size={20}/></button>
-        </header>
+      <ModalShell onClose={onClose}>
+        <div dir={dir} lang={language} className="flex-1 flex flex-col p-8 sm:p-10">
+          <header className="flex items-center justify-between mb-8">
+            <span className="w-12 h-12 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center">
+              <Sparkles size={24} />
+            </span>
+            <button
+              onClick={onClose}
+              aria-label={t.close}
+              className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-700"
+            >
+              <X size={20} />
+            </button>
+          </header>
 
-        <div className="text-center space-y-2">
-          <div className="text-6xl font-black text-violet-600 tracking-tighter">{result}</div>
-          <p className="text-gray-500 font-medium">The Visionary / Architect</p>
-        </div>
+          <div className="flex-1 flex flex-col justify-center">
+            <h2 className="font-display text-3xl sm:text-4xl font-medium tracking-tight text-slate-900">
+              {t.chooseLanguage}
+            </h2>
+            <p className="mt-3 text-slate-500 font-medium leading-relaxed">{t.chooseLanguageHint}</p>
 
-        <div className="space-y-6">
-          <div className="bg-violet-50 rounded-3xl p-6 space-y-3">
-             <div className="flex items-center gap-2 text-violet-700 font-bold uppercase text-xs tracking-widest">
-               <BookOpen size={14} /> Description
-             </div>
-             <p className="text-sm text-violet-900 leading-relaxed">
-               You are driven by logic and organization. You enjoy finding efficient ways to achieve long-term goals and are often described as a strategic thinker.
-             </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-green-50 rounded-3xl p-5 space-y-2">
-              <div className="flex items-center gap-2 text-green-700 font-bold uppercase text-xs tracking-widest"><Zap size={14} /> Strengths</div>
-              <ul className="text-xs text-green-800 space-y-1">
-                <li>• Analytical</li>
-                <li>• Determined</li>
-                <li>• Strategic</li>
-              </ul>
+            <div className="mt-8">
+              <LanguagePicker value={language} onChange={setLanguage} size="lg" />
             </div>
-            <div className="bg-red-50 rounded-3xl p-5 space-y-2">
-              <div className="flex items-center gap-2 text-red-700 font-bold uppercase text-xs tracking-widest"><ShieldAlert size={14} /> Weaknesses</div>
-              <ul className="text-xs text-red-800 space-y-1">
-                <li>• Impatient</li>
-                <li>• Over-critical</li>
-                <li>• Reserved</li>
-              </ul>
-            </div>
+
+            <p className="mt-6 text-xs font-medium text-slate-400">{t.changeLanguageAnytime}</p>
           </div>
 
-          <div className="bg-blue-50 rounded-3xl p-6 space-y-3">
-             <div className="flex items-center gap-2 text-blue-700 font-bold uppercase text-xs tracking-widest">
-               <Briefcase size={14} /> Careers
-             </div>
-             <div className="flex flex-wrap gap-2">
-               {['Software Arch', 'Scientist', 'Judge', 'Executive'].map(c => (
-                 <span key={c} className="bg-white px-3 py-1 rounded-full text-xs font-bold text-blue-600 shadow-sm">{c}</span>
-               ))}
-             </div>
-          </div>
+          <button
+            onClick={() => setStage('test')}
+            className="mt-8 w-full h-14 bg-violet-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-violet-200 hover:bg-violet-700 transition-all active:scale-[0.98]"
+          >
+            {t.beginTest}
+          </button>
         </div>
-
-        <button 
-          onClick={onClose}
-          className="w-full bg-gray-900 text-white rounded-2xl py-4 font-bold"
-        >
-          Finish
-        </button>
-      </div>
+      </ModalShell>
     );
   }
 
+  // ── Results ──
+  if (stage === 'result' && result) {
+    return (
+      <MBTIResult
+        result={result}
+        onClose={onClose}
+        onRetake={restart}
+        onSave={() => persist(result)}
+        saving={saving}
+        saved={saved || profile?.mbtiType === result.type}
+        canSave={!!user}
+      />
+    );
+  }
+
+  // ── Questionnaire ──
   return (
-    <div className="fixed inset-0 bg-white z-[70] p-8 flex flex-col pt-20">
-      <header className="absolute top-8 left-8 right-8 flex justify-between items-center">
-        <button onClick={onClose}><X size={24} className="text-gray-400" /></button>
-        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Global Test {currentIdx+1}/{MBTI_QUESTIONS.length}</span>
-      </header>
+    <ModalShell onClose={onClose}>
+      <div dir={dir} lang={language} className="flex-1 flex flex-col p-6 sm:p-10">
+        <header className="space-y-4 mb-8">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              onClick={() => (currentIdx === 0 ? setStage('language') : setCurrentIdx(currentIdx - 1))}
+              aria-label={t.back}
+              className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-700 shrink-0"
+            >
+              <ArrowLeft size={20} className={rtl ? 'rotate-180' : undefined} />
+            </button>
 
-      <main className="flex-1 flex flex-col justify-center space-y-12">
-         <div className="space-y-4">
-           <div className="w-12 h-12 bg-violet-100 rounded-2xl flex items-center justify-center text-violet-600">
-             <Sparkles size={24} />
-           </div>
-           <h2 className="text-3xl font-bold text-gray-900 leading-tight">
-             {MBTI_QUESTIONS[currentIdx].text}
-           </h2>
-         </div>
+            <LanguagePicker value={language} onChange={setLanguage} />
 
-         <div className="space-y-4">
-           {MBTI_QUESTIONS[currentIdx].options.map((opt, i) => (
-             <button
-              key={i}
-              onClick={() => handleAnswer(opt.score)}
-              className="w-full p-6 text-left border border-gray-100 rounded-3xl hover:border-violet-600 hover:bg-violet-50 transition-all font-bold text-gray-700 hover:text-violet-900 flex justify-between items-center"
-             >
-               {opt.text}
-               <ArrowRight size={18} className="text-gray-300" />
-             </button>
-           ))}
-         </div>
-      </main>
-    </div>
+            <button
+              onClick={onClose}
+              aria-label={t.close}
+              className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-700 shrink-0"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-slate-400">
+              <span>{t.questionOf(currentIdx + 1, total)}</span>
+              <span>{Math.round((answeredCount / total) * 100)}%</span>
+            </div>
+            <div
+              className="h-1.5 bg-slate-100 rounded-full overflow-hidden"
+              role="progressbar"
+              aria-valuenow={Math.round(progress)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={t.progress}
+            >
+              <motion.div
+                initial={false}
+                animate={{ width: `${((currentIdx + 1) / total) * 100}%` }}
+                className="h-full bg-violet-600"
+              />
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 flex flex-col justify-center">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${item.id}-${language}`}
+              initial={{ opacity: 0, x: rtl ? -20 : 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: rtl ? 20 : -20 }}
+              transition={{ duration: 0.22 }}
+              className="space-y-8"
+            >
+              <h2 className="font-display text-2xl sm:text-3xl font-medium text-slate-900 leading-snug">
+                {item.text[language]}
+              </h2>
+
+              <div className="space-y-3">
+                {labels.map((label, i) => {
+                  const selected = answers[item.id] === i;
+                  return (
+                    <button
+                      key={label}
+                      onClick={() => handleAnswer(i as ResponseIndex)}
+                      className={`w-full p-5 text-start border-2 rounded-2xl font-bold transition-all active:scale-[0.99] flex items-center justify-between gap-3 ${
+                        selected
+                          ? 'border-violet-500 bg-violet-50 text-violet-900'
+                          : 'border-slate-100 text-slate-700 hover:border-violet-200 hover:bg-violet-50/40'
+                      }`}
+                    >
+                      <span>{label}</span>
+                      {selected && <Check size={18} className="text-violet-600 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
+    </ModalShell>
   );
 };
 

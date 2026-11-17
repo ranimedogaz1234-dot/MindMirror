@@ -9,3 +9,7 @@ coverage/
 .vscode/
 .idea/
 *.local
+*-debug.log
+.firebase/
+
+.test-build/

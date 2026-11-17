@@ -41,6 +41,10 @@ export interface UserProfile {
   lastActive: any;
   traitsProgress: Record<TraitId, number>;
   mbtiType?: string;
+  /** Preference percentage per pole, e.g. { E: 28, I: 72, ... }. */
+  mbtiScores?: Record<string, number>;
+  /** Preferred language for the personality test: 'en' | 'fr' | 'ar'. */
+  language?: string;
 }
 
 export interface QuizResult {

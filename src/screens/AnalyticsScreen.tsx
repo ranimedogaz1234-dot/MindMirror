@@ -62,15 +62,15 @@ const AnalyticsScreen: React.FC = () => {
   };
 
   return (
-    <div className="px-6 pt-12 space-y-8 pb-10">
+    <div className="px-6 lg:px-10 pt-6 lg:pt-12 space-y-8 pb-10">
       <header>
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900">Analytics</h1>
+        <h1 className="font-display text-[1.75rem] sm:text-4xl lg:text-5xl font-medium tracking-tight text-gray-900">Analytics</h1>
         <p className="text-gray-500">Your psychological growth over time</p>
       </header>
 
       {/* Hero Stats */}
-      <div className="grid grid-cols-2 gap-6">
-        <div className="bg-white rounded-[2rem] p-8 border border-slate-50 shadow-sm space-y-4 flex flex-col justify-between">
+      <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:max-w-2xl">
+        <div className="bg-white rounded-[2rem] p-6 sm:p-8 border border-slate-50 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-inner">
             <Award size={24} />
           </div>
@@ -79,7 +79,7 @@ const AnalyticsScreen: React.FC = () => {
             <p className="text-4xl font-black text-slate-900 tracking-tighter">{averageScore}%</p>
           </div>
         </div>
-        <div className="bg-white rounded-[2rem] p-8 border border-slate-50 shadow-sm space-y-4 flex flex-col justify-between">
+        <div className="bg-white rounded-[2rem] p-6 sm:p-8 border border-slate-50 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-inner">
             <TrendingUp size={24} />
           </div>
@@ -90,14 +90,15 @@ const AnalyticsScreen: React.FC = () => {
         </div>
       </div>
 
+      <div className="grid gap-8 xl:grid-cols-2 items-start">
       {/* Mood Analytics */}
-      <section className="bg-white rounded-[2.5rem] p-10 border border-slate-50 shadow-sm space-y-8">
+      <section className="bg-white rounded-[2.5rem] p-6 sm:p-10 border border-slate-50 shadow-sm space-y-8">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-black text-slate-900 uppercase">Mood Distribution</h3>
           <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Weekly Patterns</span>
         </div>
         
-        <div className="flex flex-col md:flex-row items-center gap-8">
+        <div className="flex flex-col sm:flex-row xl:flex-col 2xl:flex-row items-center gap-8">
           <div className="h-[200px] w-full max-w-[200px]">
             {moods.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -142,7 +143,7 @@ const AnalyticsScreen: React.FC = () => {
       </section>
 
       {/* Radar Chart */}
-      <section className="bg-white rounded-[2.5rem] p-10 border border-slate-50 shadow-sm space-y-10">
+      <section className="bg-white rounded-[2.5rem] p-6 sm:p-10 border border-slate-50 shadow-sm space-y-10">
         <div className="flex justify-between items-center px-2">
           <h3 className="text-lg font-black text-slate-900 tracking-tight uppercase">Trait Balance</h3>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Global Profile</span>
@@ -174,6 +175,9 @@ const AnalyticsScreen: React.FC = () => {
         </div>
       </section>
 
+      </div>
+
+      <div className="grid gap-8 xl:grid-cols-2 items-start">
       {/* Line Chart */}
       <section className="bg-white rounded-[32px] p-6 border border-gray-100 shadow-sm space-y-6">
         <h3 className="font-bold text-gray-900 px-2">Performance History</h3>
@@ -229,6 +233,7 @@ const AnalyticsScreen: React.FC = () => {
           })}
         </div>
       </section>
+      </div>
     </div>
   );
 };

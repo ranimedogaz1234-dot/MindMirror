@@ -17,7 +17,7 @@ const ProfileScreen: React.FC = () => {
       <motion.div 
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
-        className="px-6 pt-12 space-y-8 pb-10"
+        className="px-6 lg:px-10 pt-6 lg:pt-12 space-y-8 pb-10 w-full max-w-2xl mx-auto"
       >
         <div className="flex items-center gap-4">
           <button 
@@ -87,9 +87,9 @@ const ProfileScreen: React.FC = () => {
   }
 
   return (
-    <div className="px-6 pt-12 space-y-8 pb-10">
+    <div className="px-6 lg:px-10 pt-6 lg:pt-12 space-y-8 pb-10 w-full max-w-2xl mx-auto">
       <div className="space-y-1">
-        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Settings</h1>
+        <h1 className="font-display text-[1.75rem] sm:text-4xl lg:text-5xl font-medium text-slate-900 tracking-tight">Settings</h1>
         <p className="text-slate-500 font-medium">Manage your account and preferences</p>
       </div>
 

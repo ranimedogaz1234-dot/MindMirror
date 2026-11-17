@@ -8,6 +8,7 @@ import { db } from '../lib/firebase';
 import { addDoc, collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../providers/AuthProvider';
 import toast from 'react-hot-toast';
+import ModalShell from '../components/ModalShell';
 
 interface QuizScreenProps {
   traitId: TraitId;
@@ -75,7 +76,8 @@ const QuizScreen: React.FC<QuizScreenProps> = ({ traitId, onClose }) => {
   if (complete) {
     const finalPercentage = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
     return (
-      <div className="fixed inset-0 bg-white z-[60] flex flex-col items-center justify-center p-8 text-center space-y-8">
+      <ModalShell onClose={onClose}>
+      <div className="flex-1 flex flex-col items-center justify-center p-8 sm:p-12 text-center space-y-8">
         <motion.div
           initial={{ scale: 0, rotate: -10 }}
           animate={{ scale: 1, rotate: 0 }}
@@ -100,12 +102,14 @@ const QuizScreen: React.FC<QuizScreenProps> = ({ traitId, onClose }) => {
           Back to Home
         </button>
       </div>
+      </ModalShell>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-white z-[60] flex flex-col p-6 overflow-hidden">
-      <header className="flex justify-between items-center mb-12">
+    <ModalShell onClose={onClose}>
+    <div className="flex-1 flex flex-col p-6 sm:p-10">
+      <header className="flex justify-between items-center mb-8 sm:mb-10">
         <button onClick={onClose} className="p-2 -ml-2 text-gray-400 hover:text-gray-900 transition-colors">
           <X size={24} />
         </button>
@@ -149,6 +153,7 @@ const QuizScreen: React.FC<QuizScreenProps> = ({ traitId, onClose }) => {
         </AnimatePresence>
       </main>
     </div>
+    </ModalShell>
   );
 };
 
