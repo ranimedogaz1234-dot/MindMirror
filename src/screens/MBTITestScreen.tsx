@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Check, Sparkles, X } from 'lucide-react';
 import { db } from '../lib/firebase';
+import { canSavePersonalData } from '../lib/verification';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../providers/AuthProvider';
 import toast from 'react-hot-toast';
@@ -88,6 +89,10 @@ const MBTITestScreen: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     if (!user) return;
     setSaving(true);
     try {
+      if (!(await canSavePersonalData())) {
+        toast.error(t.verifyToSave);
+        return;
+      }
       await updateDoc(doc(db, 'users', user.uid), {
         mbtiType: scored.type,
         mbtiScores: scored.percentages,

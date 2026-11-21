@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
 import { db } from '../lib/firebase';
+import { canSavePersonalData } from '../lib/verification';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../providers/AuthProvider';
 import toast from 'react-hot-toast';
@@ -67,6 +68,11 @@ const MoodQuizScreen: React.FC<MoodQuizScreenProps> = ({ onClose }) => {
     };
 
     try {
+      if (!(await canSavePersonalData())) {
+        setResult({ ...moodMatch, percentage: Math.round(average) });
+        toast.error('Verify your email address to save your mood.');
+        return;
+      }
       await addDoc(collection(db, 'daily_moods'), moodData);
       setResult({ ...moodMatch, percentage: Math.round(average) });
       toast.success('Mood logged successfully!');

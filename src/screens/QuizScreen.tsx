@@ -5,6 +5,7 @@ import { TRAITS } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { db } from '../lib/firebase';
+import { canSavePersonalData } from '../lib/verification';
 import { addDoc, collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../providers/AuthProvider';
 import toast from 'react-hot-toast';
@@ -45,6 +46,11 @@ const QuizScreen: React.FC<QuizScreenProps> = ({ traitId, onClose }) => {
     const percentage = Math.round(average);
 
     try {
+      if (!(await canSavePersonalData())) {
+        toast.error('Verify your email address to save your results.');
+        return;
+      }
+
       // Save result
       await addDoc(collection(db, 'results'), {
         userId: user.uid,
