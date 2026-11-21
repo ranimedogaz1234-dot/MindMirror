@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Type-check, tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The Firestore emulator used by the security-rules tests needs a JRE.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Type-check
+        run: npm run lint
+
+      - name: Personality-test scoring and translation tests
+        run: npm run test:mbti
+
+      - name: Firestore security-rules tests (emulator)
+        # A "demo-" project id keeps the emulator fully offline: no
+        # Firebase login or credentials are needed in CI.
+        run: npx firebase emulators:exec --project demo-mindmirror --only firestore "node test/firestore.rules.test.mjs"
+
+      - name: Production build
+        run: npm run build
