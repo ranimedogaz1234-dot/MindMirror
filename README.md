@@ -13,6 +13,8 @@
 ![Tests](https://img.shields.io/badge/automated_tests-49_passing-22C55E)
 ![License](https://img.shields.io/badge/license-All_rights_reserved-lightgrey)
 
+**🌐 [Live Demo — Try MindMirror](https://mindmirror-01.web.app)**
+
 <img src="docs/screenshots/01-homepage-desktop.webp" alt="MindMirror homepage on desktop" width="860">
 
 </div>
