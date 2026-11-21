@@ -6,13 +6,23 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Helper functions
+    // ── Helper functions ────────────────────────────────────────────────
+
     function isSignedIn() {
       return request.auth != null;
     }
-    
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Email/password accounts must verify their email address before they
+    // can save personal data (results, moods, personality type, progress).
+    // Google and other federated sign-ins are unaffected.
+    function isVerifiedAccount() {
+      return isSignedIn()
+        && (request.auth.token.firebase.sign_in_provider != 'password'
+            || request.auth.token.email_verified == true);
     }
 
     function incoming() {
@@ -27,11 +37,21 @@ service cloud.firestore {
        return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    // Preference percentages: exactly the eight pole keys, each 0-100.
     function isPercent(value) {
       return value is number && value >= 0 && value <= 100;
     }
 
+    function isWholePercent(value) {
+      return value is int && value >= 0 && value <= 100;
+    }
+
+    // The ten trait ids used by the app (src/constants.ts).
+    function traitIds() {
+      return ['openness', 'growth-mindset', 'natural-leader', 'creativity', 'discipline',
+              'emotional-intelligence', 'confidence', 'social-energy', 'resilience', 'empathy'];
+    }
+
+    // Preference percentages: exactly the eight pole keys, each 0-100.
     function isValidMbtiScores(scores) {
       return scores is map
         && scores.keys().hasOnly(['E', 'I', 'S', 'N', 'T', 'F', 'J', 'P'])
@@ -42,53 +62,98 @@ service cloud.firestore {
         && isPercent(scores.J) && isPercent(scores.P);
     }
 
-    // Validation Blueprints
+    // Latest percentage per trait: only known trait ids, each a whole 0-100.
+    function isValidTraitsProgress(p) {
+      return p is map
+        && p.keys().hasOnly(traitIds())
+        && (!('openness' in p) || isWholePercent(p['openness']))
+        && (!('growth-mindset' in p) || isWholePercent(p['growth-mindset']))
+        && (!('natural-leader' in p) || isWholePercent(p['natural-leader']))
+        && (!('creativity' in p) || isWholePercent(p['creativity']))
+        && (!('discipline' in p) || isWholePercent(p['discipline']))
+        && (!('emotional-intelligence' in p) || isWholePercent(p['emotional-intelligence']))
+        && (!('confidence' in p) || isWholePercent(p['confidence']))
+        && (!('social-energy' in p) || isWholePercent(p['social-energy']))
+        && (!('resilience' in p) || isWholePercent(p['resilience']))
+        && (!('empathy' in p) || isWholePercent(p['empathy']));
+    }
+
+    // Mood answers: only the six question ids (m1-m6), each 0-100.
+    function isValidMoodAnswers(a) {
+      return a is map
+        && a.keys().hasOnly(['m1', 'm2', 'm3', 'm4', 'm5', 'm6'])
+        && (!('m1' in a) || isPercent(a.m1))
+        && (!('m2' in a) || isPercent(a.m2))
+        && (!('m3' in a) || isPercent(a.m3))
+        && (!('m4' in a) || isPercent(a.m4))
+        && (!('m5' in a) || isPercent(a.m5))
+        && (!('m6' in a) || isPercent(a.m6));
+    }
+
+    // ── Validation blueprints ───────────────────────────────────────────
+
     function isValidUser(data) {
-      return data.uid is string && data.uid.size() <= 128
+      return data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'streak', 'lastActive',
+                                  'traitsProgress', 'mbtiType', 'mbtiScores', 'language'])
+        && data.uid is string && data.uid.size() <= 128
         && data.email is string && data.email.size() <= 256
         && (data.displayName == null || (data.displayName is string && data.displayName.size() <= 128))
         && (data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 1024))
-        && data.streak is number
-        && data.traitsProgress is map
-        && (!('mbtiType' in data) || data.mbtiType == null || (data.mbtiType is string && data.mbtiType.size() <= 4))
+        && data.streak is int && data.streak >= 0 && data.streak <= 100000
+        && isValidTraitsProgress(data.traitsProgress)
+        && (!('mbtiType' in data) || data.mbtiType == null || (data.mbtiType is string && data.mbtiType.matches('^[EI][SN][TF][JP]$')))
         && (!('language' in data) || data.language == null || (data.language is string && data.language in ['en', 'fr', 'ar']))
         && (!('mbtiScores' in data) || data.mbtiScores == null || isValidMbtiScores(data.mbtiScores));
     }
 
     function isValidResult(data) {
-      return data.userId == request.auth.uid
-        && data.traitId is string && data.traitId.size() <= 64
-        && data.score is number
-        && data.percentage is number
+      return data.keys().hasOnly(['userId', 'traitId', 'score', 'percentage', 'timestamp'])
+        && data.userId == request.auth.uid
+        && data.traitId is string && data.traitId in traitIds()
+        && isPercent(data.score)
+        && isWholePercent(data.percentage)
         && data.timestamp == request.time;
     }
 
     function isValidMood(data) {
-      return data.userId == request.auth.uid
-        && data.moodType is string && data.moodType.size() <= 64
-        && data.moodPercentage is number
+      return data.keys().hasOnly(['userId', 'moodType', 'moodEmoji', 'moodPercentage', 'answers', 'timestamp'])
+        && data.userId == request.auth.uid
+        && data.moodType is string && data.moodType in ['Excited', 'Happy', 'Calm', 'Tired', 'Stressed', 'Sad']
         && data.moodEmoji is string && data.moodEmoji.size() <= 16
-        && data.answers is map
+        && isWholePercent(data.moodPercentage)
+        && isValidMoodAnswers(data.answers)
         && data.timestamp == request.time;
     }
 
-    // User Profile Rules
+    // ── User profile ────────────────────────────────────────────────────
+
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow create: if isOwner(userId) 
+
+      // Creating the starter profile is allowed before email verification:
+      // it holds only the account's own identity and empty progress.
+      allow create: if isOwner(userId)
         && isValidId(userId)
         && incoming().uid == userId
+        && incoming().email == request.auth.token.email
+        && incoming().keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'streak', 'lastActive', 'traitsProgress'])
         && incoming().keys().hasAll(['uid', 'email', 'streak', 'lastActive', 'traitsProgress'])
         && isValidUser(incoming())
+        && incoming().streak == 1
+        && incoming().traitsProgress.size() == 0
         && incoming().lastActive == request.time;
+
+      // Saving results into the profile requires a verified account.
       allow update: if isOwner(userId)
+        && isVerifiedAccount()
         && incoming().uid == userId
         && isValidUser(incoming())
         && incoming().lastActive == request.time
         && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'streak', 'lastActive', 'traitsProgress', 'mbtiType', 'mbtiScores', 'language']);
     }
 
-    // Metadata (Read-Only for signed-in users)
+    // ── Metadata (read-only for signed-in users) ────────────────────────
+
     match /traits/{traitId} {
       allow read: if isSignedIn();
     }
@@ -101,23 +166,21 @@ service cloud.firestore {
       allow read: if isSignedIn();
     }
 
-    // Results (User-Specific)
+    // ── Results (user-specific, append-only) ────────────────────────────
+
     match /results/{resultId} {
-      // Security through query enforcement: Client must filter by userId
+      // Security through query enforcement: the client must filter by userId.
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() 
-        && isValidResult(incoming())
-        && incoming().userId == request.auth.uid;
+      allow create: if isVerifiedAccount() && isValidResult(incoming());
     }
 
-    // Daily Moods (User-Specific)
+    // ── Daily moods (user-specific, append-only) ────────────────────────
+
     match /daily_moods/{moodId} {
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() 
-        && isValidMood(incoming())
-        && incoming().userId == request.auth.uid;
+      allow create: if isVerifiedAccount() && isValidMood(incoming());
     }
   }
 }

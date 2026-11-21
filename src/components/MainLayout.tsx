@@ -30,7 +30,7 @@ const VerifyEmailBanner: React.FC = () => {
   return (
     <div className="mx-6 lg:mx-10 mt-4 lg:mt-8 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3">
       <MailWarning size={18} className="text-amber-600 shrink-0" />
-      <p className="flex-1 text-xs font-medium text-amber-800">Please verify your email address.</p>
+      <p className="flex-1 text-xs font-medium text-amber-800">Please verify your email address to save your results.</p>
       <button
         onClick={handleResend}
         disabled={sending}

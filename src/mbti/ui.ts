@@ -23,6 +23,8 @@ export interface UiStrings {
   saved: string;
   savedAlready: string;
   signInToSave: string;
+  /** Shown when an email/password account tries to save before verifying its address. */
+  verifyToSave: string;
 
   // Sections
   lettersTitle: string;
@@ -93,6 +95,7 @@ export const UI: Record<Language, UiStrings> = {
     retake: 'Retake test',
     saveResult: 'Save result',
     saved: 'Result saved',
+    verifyToSave: 'Verify your email address to save your result. Check your inbox, then try again.',
     savedAlready: 'Saved to your profile',
     signInToSave: 'Sign in to save this result',
 
@@ -147,6 +150,7 @@ export const UI: Record<Language, UiStrings> = {
     retake: 'Refaire le test',
     saveResult: 'Enregistrer le résultat',
     saved: 'Résultat enregistré',
+    verifyToSave: 'Vérifiez votre adresse e-mail pour enregistrer votre résultat. Consultez votre boîte de réception, puis réessayez.',
     savedAlready: 'Enregistré dans votre profil',
     signInToSave: 'Connectez-vous pour enregistrer ce résultat',
 
@@ -201,6 +205,7 @@ export const UI: Record<Language, UiStrings> = {
     retake: 'إعادة الاختبار',
     saveResult: 'حفظ النتيجة',
     saved: 'تم حفظ النتيجة',
+    verifyToSave: 'يرجى تأكيد بريدك الإلكتروني لحفظ نتيجتك. تحقق من صندوق الوارد ثم حاول مجددًا.',
     savedAlready: 'محفوظة في ملفّك',
     signInToSave: 'سجّل الدخول لحفظ هذه النتيجة',
 

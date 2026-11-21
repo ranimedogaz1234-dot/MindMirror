@@ -198,20 +198,22 @@ Visitors can look around before creating an account: the available tests, the fe
 - **Firebase Authentication** for every private feature
 - **Default-deny Firestore rules.** Anything not explicitly allowed is refused.
 - **Per-user access control.** Users can only read and write their own profile, results and mood entries.
-- **Field validation** on every write: types, sizes, allowed keys, the 0–100 range of each percentage, supported language codes, and server timestamps
-- **20 automated security-rule tests** run against the Firestore emulator
-- The current rules are **deployed to the live project** `mindmirror-01` (see [Security](#security) for exactly what has been verified live)
+- **Field validation** on every write: exact allowed keys, types, sizes, known trait and mood ids, the 0–100 range of each percentage, supported language codes, and server timestamps
+- **Verified email required to save.** Email/password accounts must verify their address before results, moods or a personality type are saved; Google accounts are unaffected
+- **Security headers on Firebase Hosting:** Content Security Policy, HSTS, `nosniff`, clickjacking protection and a popup-safe opener policy
+- **49 automated security-rule tests** run against the Firestore emulator
+- See [Security](#security) for exactly what has been verified live
 
 ### K. Automated testing
 
 | Suite | Result |
 |---|---|
 | Personality scoring and content tests (`npm run test:mbti`) | **29 passing** |
-| Firestore security-rule tests (`npm run test:rules`) | **20 passing** |
+| Firestore security-rule tests (`npm run test:rules`) | **49 passing** |
 | TypeScript check (`npm run lint`) | **Clean** |
 | Production build (`npm run build`) | **Successful** |
 
-**49 automated tests passing**, plus a clean type-check and a successful production build. These figures were re-run on 18 November 2026, just before publication.
+**78 automated tests passing**, plus a clean type-check and a successful production build. These figures were re-run on 21 November 2026.
 
 ---
 
@@ -319,7 +321,7 @@ flowchart LR
 |---|---|
 | Google Sign-In | `signInWithPopup` with `GoogleAuthProvider` |
 | Email / password | `createUserWithEmailAndPassword`, `signInWithEmailAndPassword` |
-| Email verification | `sendEmailVerification` on sign-up, plus a resend banner |
+| Email verification | `sendEmailVerification` on sign-up, plus a resend banner. Email/password accounts must be verified before personal data is saved (enforced by the rules; the app explains why and refreshes the status after verification). |
 | Password reset | `sendPasswordResetEmail` |
 | Session-aware routing | Private pages and tests require sign-in. The intended action resumes afterwards. |
 | Local emulators | `VITE_USE_EMULATORS=true` connects a dev build to the Auth and Firestore emulators. This path is excluded from production builds. |
@@ -337,14 +339,18 @@ The rules in [`firestore.rules`](firestore.rules) enforce the following:
 | Default deny | `match /{document=**} { allow read, write: if false; }` |
 | Owner-only profiles | `users/{uid}` can be read and written only by that user |
 | Restricted updates | Only declared fields may change, and `uid` cannot be reassigned |
-| Validated personality results | `mbtiScores` must contain exactly the eight poles, each a number from 0 to 100. `mbtiType` is at most 4 characters. `language` must be `en`, `fr` or `ar`. |
+| Validated personality results | `mbtiScores` must contain exactly the eight poles, each a number from 0 to 100. `mbtiType` must be a valid four-letter type. `language` must be `en`, `fr` or `ar`. |
+| Validated profiles | Only declared fields; `traitsProgress` accepts only the ten trait ids with whole percentages 0–100; `streak` is a bounded integer; a new profile must use the signed-in email and start empty |
+| Validated history | `results` accept only known trait ids and 0–100 scores; `daily_moods` accept only the six mood types and answers `m1`–`m6` in 0–100; no extra fields |
+| Verified email to save | Email/password accounts can create their starter profile, but cannot save results, moods or a personality type until `email_verified` is true. Google sign-in is unaffected. |
 | Owner-only history | `results` and `daily_moods` can only be created, read or listed by their owner, and are append-only |
 | Server timestamps | Writes must use `request.time` |
 | Undeclared collections | Denied entirely |
 
 **Verification status**
 
-- ✅ **Emulator:** 20/20 rule tests pass, covering ownership, cross-user reads and writes, validation and default deny.
+- ✅ **Emulator:** 49/49 rule tests pass, covering ownership, cross-user reads and writes, field validation, email verification, Google accounts and default deny.
+- ⏳ **Stricter rules (November 21, 2026):** not yet deployed. Deploy them with `npx firebase deploy --only firestore --project mindmirror-01` (rules and indexes).
 - ✅ **Deployed:** the rules were compiled and released to the Firebase project `mindmirror-01` on 17 November 2026.
 - ✅ **Live, signed out:** unauthenticated reads and writes against the production database (`users`, `results`) are rejected with HTTP 403.
 - ⏳ **Live, signed in:** profile creation, result saving and cross-user isolation have **not yet been re-checked against production with a signed-in test account**. They are verified against the identical rules on the emulator, but an end-to-end production check is still pending.
@@ -398,13 +404,27 @@ npx firebase deploy --only firestore:rules --project <your-project-id>
 
 No `.env` file is needed. See [`.env.example`](.env.example) for why.
 
+**Deploying to Firebase Hosting** (free Spark plan; no paid services are used):
+
+```bash
+npx firebase login
+# 1. Security rules and the two composite indexes used by the dashboard and analytics
+npx firebase deploy --only firestore --project mindmirror-01
+# 2. Optional private preview first (add its domain under Authentication → Settings → Authorized domains)
+npx firebase hosting:channel:deploy review --expires 7d --project mindmirror-01
+# 3. Public site at https://mindmirror-01.web.app
+npx firebase deploy --only hosting --project mindmirror-01
+```
+
+`firebase.json` builds the app before deploying, serves `dist/`, sends every path to `index.html`, caches hashed assets for a year and adds security headers (Content Security Policy, HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` and `Cross-Origin-Opener-Policy: same-origin-allow-popups`, which Google's sign-in popup needs).
+
 ---
 
 ## Testing
 
 ```text
 $ npm run test:mbti      → 29 passed, 0 failed
-$ npm run test:rules     → 20 passed, 0 failed
+$ npm run test:rules     → 49 passed, 0 failed
 $ npm run lint           → no TypeScript errors
 $ npm run build          → ✓ built
 ```
@@ -419,11 +439,14 @@ $ npm run build          → ✓ built
 - that every UI string exists in every language
 - source links, and the presence of the disclaimer
 
-**Security-rule tests (20)** cover:
+**Security-rule tests (49)** cover:
 - owner access and cross-user denial
 - unauthenticated denial
 - validation of percentages, keys, language codes and undeclared fields
-- query-level isolation of results
+- strict validation of trait progress, quiz results and mood entries (known ids, ranges, no extra fields, server timestamps, append-only)
+- email verification: unverified email/password accounts can sign up but cannot save; Google accounts can
+- the exact dashboard and analytics queries (`userId` + newest first)
+- query-level isolation of results and moods
 - denial of undeclared collections
 
 > **Windows note:** if the Firestore emulator exits with `UnixDomainSockets.connect` errors, set `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:\some\short\path` before running `npm run test:rules`.
