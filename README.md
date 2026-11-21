@@ -370,7 +370,7 @@ The rules in [`firestore.rules`](firestore.rules) enforce the following:
 
 ## Getting started
 
-**Prerequisites:** Node.js 18 or later and npm. To run the security-rule tests you also need Java 11 or later (for the Firestore emulator).
+**Prerequisites:** Node.js 24 LTS (recommended; see [`.nvmrc`](.nvmrc)) and npm. The Firebase CLI used for emulators and deployment supports Node.js 20, 22 and 24. To run the security-rule tests you also need Java 11 or later (for the Firestore emulator).
 
 ```bash
 git clone https://github.com/ranimedogaz1234-dot/MindMirror.git
@@ -403,6 +403,8 @@ npx firebase deploy --only firestore:rules --project <your-project-id>
 ```
 
 No `.env` file is needed. See [`.env.example`](.env.example) for why.
+
+**Dependency note:** every current Firebase release pins `@grpc/grpc-js` to `~1.9.0` inside `@firebase/firestore`, which `npm audit` flags (GHSA-m9gg-hp2v-232j, GHSA-f596-whhp-79r4). Both advisories concern gRPC *servers*, and gRPC is only used by Firestore's Node.js build (here, only the rule tests). The browser build talks to Firestore over WebChannel and contains no gRPC code. `package.json` still overrides that nested dependency to the patched `^1.14.5`, so `npm audit --omit=dev` is clean; the rule tests exercise the overridden version. Remove the override once Firebase updates its own pin.
 
 **Deploying to Firebase Hosting** (free Spark plan; no paid services are used):
 
