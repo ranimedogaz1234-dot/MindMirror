@@ -10,6 +10,7 @@
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Auth_%2B_Firestore-FFCA28?logo=firebase&logoColor=black)
 ![Languages](https://img.shields.io/badge/languages-EN_%7C_FR_%7C_AR-7C3AED)
+[![CI](https://github.com/ranimedogaz1234-dot/MindMirror/actions/workflows/ci.yml/badge.svg)](https://github.com/ranimedogaz1234-dot/MindMirror/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/badge/automated_tests-49_passing-22C55E)
 ![License](https://img.shields.io/badge/license-All_rights_reserved-lightgrey)
 
@@ -432,6 +433,8 @@ $ npm run test:rules     → 49 passed, 0 failed
 $ npm run lint           → no TypeScript errors
 $ npm run build          → ✓ built
 ```
+
+All four checks run automatically on every push and pull request through [GitHub Actions](.github/workflows/ci.yml). The rules tests use a `demo-` project id, so the Firestore emulator runs fully offline and CI needs no Firebase credentials.
 
 **Personality tests (29)** cover:
 - item structure and translations
